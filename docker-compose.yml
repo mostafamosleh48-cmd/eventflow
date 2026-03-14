@@ -1,0 +1,43 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: eventflow
+      POSTGRES_PASSWORD: eventflow
+      POSTGRES_DB: eventflow_db
+    ports:
+      - '5433:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U eventflow -d eventflow_db']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    ports:
+      - '3000:3000'
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      DATABASE_URL: postgresql://eventflow:eventflow@postgres:5432/eventflow_db
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  worker:
+    build: .
+    command: ['node', 'dist/worker.js']
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://eventflow:eventflow@postgres:5432/eventflow_db
+      WORKER_CONCURRENCY: 3
+      JOB_MAX_RETRIES: 5
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
