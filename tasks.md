@@ -45,26 +45,33 @@
 
 ### Server Setup
 
-- [ ] 2.1 Create `src/server.ts` — Express app with JSON parsing, CORS, health check (`GET /health`)
-- [ ] 2.2 Create `src/types/pipeline.ts` — interfaces for Pipeline, Subscriber, API request/response
-- [ ] 2.3 Create `src/utils/errors.ts` — `AppError` class with `statusCode` and `isOperational`
-- [ ] 2.4 Create error-handling middleware (`src/utils/errorHandler.ts`)
-- [ ] 2.5 Create async route wrapper utility (`src/utils/asyncHandler.ts`)
+- [x] 2.1 Create `src/server.ts` — Express app with JSON parsing, CORS, health check (`GET /health`)
+- [x] 2.2 Create `src/types/pipeline.ts` — interfaces for Pipeline, Subscriber, API request/response
+- [x] 2.3 Create `src/utils/errors.ts` — `AppError` class with `statusCode` and `isOperational`
+- [x] 2.4 Create error-handling middleware (`src/utils/errorHandler.ts`)
+- [x] 2.5 Create async route wrapper utility (`src/utils/asyncHandler.ts`)
 
 ### Pipeline Routes
 
-- [ ] 2.6 Create `src/routes/pipelines.ts` — Express router for `/api/v1/pipelines`
-- [ ] 2.7 `POST /api/v1/pipelines` — validate input, generate `source_token`, insert pipeline + subscribers, return 201
-- [ ] 2.8 `GET /api/v1/pipelines` — list all pipelines with pagination (limit, offset)
-- [ ] 2.9 `GET /api/v1/pipelines/:id` — get single pipeline with its subscribers, return 404 if missing
-- [ ] 2.10 `PATCH /api/v1/pipelines/:id` — partial update (name, description, action_type, action_config, is_active)
-- [ ] 2.11 `DELETE /api/v1/pipelines/:id` — delete pipeline (cascades to subscribers), return 204
-- [ ] 2.12 Input validation for create/update (required fields, valid action_type values)
+- [x] 2.6 Create `src/routes/pipelines.ts` — Express router for `/api/v1/pipelines`
+- [x] 2.7 `POST /api/v1/pipelines` — validate input, generate `source_token`, insert pipeline + subscribers, return 201
+- [x] 2.8 `GET /api/v1/pipelines` — list all pipelines with pagination (limit, offset)
+- [x] 2.9 `GET /api/v1/pipelines/:id` — get single pipeline with its subscribers, return 404 if missing
+- [x] 2.10 `PATCH /api/v1/pipelines/:id` — partial update (name, description, action_type, action_config, is_active)
+- [x] 2.11 `DELETE /api/v1/pipelines/:id` — delete pipeline (cascades to subscribers), return 204
+- [x] 2.12 Input validation for create/update (required fields, valid action_type values)
 
 ### Tests
 
-- [ ] 2.13 Unit tests for pipeline validation logic
-- [ ] 2.14 Integration tests for all pipeline CRUD endpoints
+- [x] 2.13 Unit tests for pipeline validation logic
+- [x] 2.14 Integration tests for all pipeline CRUD endpoints
+
+### Additional Files Created
+
+- [x] `src/utils/validation.ts` — Input validation functions for create/update
+- [x] `tests/unit/validation.test.ts` — 33 unit tests for validation
+- [x] `tests/integration/pipelines.test.ts` — 18 integration tests for CRUD endpoints
+- [x] Fixed `src/utils/errors.ts` — Fixed prototype chain for proper `instanceof` support
 
 ---
 
