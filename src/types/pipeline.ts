@@ -61,3 +61,24 @@ export interface PipelineListResponse {
   limit: number;
   offset: number;
 }
+
+// --- Job types ---
+
+export interface Job {
+  id: string;
+  pipeline_id: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  payload: Record<string, unknown>;
+  result: Record<string, unknown> | null;
+  error_message: string | null;
+  attempts: number;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+}
+
+export interface WebhookResponse {
+  job_id: string;
+  status: string;
+  message: string;
+}

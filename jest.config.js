@@ -4,7 +4,11 @@ module.exports = {
   testEnvironment: 'node',
   roots: ['<rootDir>/tests'],
   testMatch: ['**/*.test.ts'],
+  setupFiles: ['dotenv/config'],
   collectCoverageFrom: ['src/**/*.ts', '!src/db/migrations/**'],
   coverageDirectory: 'coverage',
+  transformIgnorePatterns: ['node_modules/(?!pg-boss)'],
+  // Run tests sequentially — integration tests share a single PostgreSQL database
+  maxWorkers: 1,
   verbose: true,
 };

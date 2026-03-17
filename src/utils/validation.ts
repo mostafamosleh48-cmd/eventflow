@@ -76,11 +76,11 @@ export function validateCreatePipelineInput(body: unknown): CreatePipelineInput 
   };
 
   if (description !== undefined) {
-    input.description = description as string;
+    input.description = description;
   }
 
   if (action_config !== undefined) {
-    input.action_config = action_config as Record<string, unknown>;
+    input.action_config = action_config;
   }
 
   if (subscribers !== undefined) {
@@ -136,19 +136,19 @@ export function validateUpdatePipelineInput(body: unknown): UpdatePipelineInput 
   const input: UpdatePipelineInput = {};
 
   if (name !== undefined) {
-    input.name = (name as string).trim();
+    input.name = name.trim();
   }
   if (description !== undefined) {
-    input.description = description as string;
+    input.description = description;
   }
   if (action_type !== undefined) {
-    input.action_type = action_type as ActionType;
+    input.action_type = action_type;
   }
   if (action_config !== undefined) {
-    input.action_config = action_config as Record<string, unknown>;
+    input.action_config = action_config;
   }
   if (is_active !== undefined) {
-    input.is_active = is_active as boolean;
+    input.is_active = is_active;
   }
 
   return input;

@@ -2,6 +2,15 @@ import { randomUUID } from 'node:crypto';
 
 import request from 'supertest';
 
+// Mock the queue service BEFORE importing app to avoid ESM-only pg-boss import issues
+jest.mock('../../src/services/queue', () => ({
+  startQueue: jest.fn().mockResolvedValue({}),
+  stopQueue: jest.fn().mockResolvedValue(undefined),
+  enqueueJob: jest.fn().mockResolvedValue('mock-pg-boss-id'),
+  getQueueName: jest.fn().mockReturnValue('webhook-jobs'),
+  getQueueInstance: jest.fn().mockReturnValue(null),
+}));
+
 import pool from '../../src/db/pool';
 import app from '../../src/server';
 import type { PipelineListResponse, PipelineResponse } from '../../src/types/pipeline';

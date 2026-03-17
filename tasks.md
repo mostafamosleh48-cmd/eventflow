@@ -79,21 +79,28 @@
 
 ### pg-boss Setup
 
-- [ ] 3.1 Create `src/services/queue.ts` — pg-boss instance initialization and helpers (enqueue, start, stop)
-- [ ] 3.2 Initialize pg-boss on server startup, graceful shutdown on SIGTERM
+- [x] 3.1 Create `src/services/queue.ts` — pg-boss instance initialization and helpers (enqueue, start, stop)
+- [x] 3.2 Initialize pg-boss on server startup, graceful shutdown on SIGTERM
 
 ### Webhook Endpoint
 
-- [ ] 3.3 Create `src/routes/webhooks.ts` — Express router for `/webhooks/:sourceToken`
-- [ ] 3.4 `POST /webhooks/:sourceToken` — look up pipeline by source_token, reject if not found or inactive (404)
-- [ ] 3.5 Insert job row (status: pending, payload from request body)
-- [ ] 3.6 Enqueue job to pg-boss queue
-- [ ] 3.7 Return 202 with `job_id`, `status: "queued"`, confirmation message
+- [x] 3.3 Create `src/routes/webhooks.ts` — Express router for `/webhooks/:sourceToken`
+- [x] 3.4 `POST /webhooks/:sourceToken` — look up pipeline by source_token, reject if not found or inactive (404)
+- [x] 3.5 Insert job row (status: pending, payload from request body)
+- [x] 3.6 Enqueue job to pg-boss queue
+- [x] 3.7 Return 202 with `job_id`, `status: "queued"`, confirmation message
 
 ### Tests
 
-- [ ] 3.8 Unit tests for webhook validation (missing pipeline, inactive pipeline)
-- [ ] 3.9 Integration tests for webhook ingestion + job creation
+- [x] 3.8 Unit tests for webhook validation (missing pipeline, inactive pipeline)
+- [x] 3.9 Integration tests for webhook ingestion + job creation
+
+### Additional Files Created
+
+- [x] `src/services/queue.ts` — pg-boss instance management (start, stop, enqueue)
+- [x] `src/routes/webhooks.ts` — POST /webhooks/:sourceToken endpoint
+- [x] `tests/unit/webhooks.test.ts` — 5 unit tests for webhook ingestion
+- [x] `tests/integration/webhooks.test.ts` — 8 integration tests for webhook + job creation
 
 ---
 
@@ -101,27 +108,40 @@
 
 ### Processing Actions
 
-- [ ] 4.1 Create `src/actions/transformJson.ts` — field remapping using JSONPath-style dot notation
-- [ ] 4.2 Create `src/actions/filterFields.ts` — allowlist/blocklist field filtering
-- [ ] 4.3 Create `src/actions/enrichTimestamp.ts` — add `_meta` block with pipeline info + timestamp
-- [ ] 4.4 Create `src/actions/index.ts` — action registry/dispatcher that maps `action_type` string to handler
-- [ ] 4.5 Define `ActionHandler` interface: `(payload, config, pipelineContext) => result`
+- [x] 4.1 Create `src/actions/transformJson.ts` — field remapping using JSONPath-style dot notation
+- [x] 4.2 Create `src/actions/filterFields.ts` — allowlist/blocklist field filtering
+- [x] 4.3 Create `src/actions/enrichTimestamp.ts` — add `_meta` block with pipeline info + timestamp
+- [x] 4.4 Create `src/actions/index.ts` — action registry/dispatcher that maps `action_type` string to handler
+- [x] 4.5 Define `ActionHandler` interface: `(payload, config, pipelineContext) => result`
 
 ### Worker
 
-- [ ] 4.6 Create `src/worker.ts` — entry point: connect pg-boss, register job handler, graceful shutdown
-- [ ] 4.7 Implement job handler: fetch pipeline, run action, update job status (processing → completed/failed)
-- [ ] 4.8 Store `result` on success, `error_message` on failure
-- [ ] 4.9 Configure concurrency via `WORKER_CONCURRENCY` env var (default: 3)
-- [ ] 4.10 Verify worker picks up and processes jobs end-to-end
+- [x] 4.6 Create `src/worker.ts` — entry point: connect pg-boss, register job handler, graceful shutdown
+- [x] 4.7 Implement job handler: fetch pipeline, run action, update job status (processing → completed/failed)
+- [x] 4.8 Store `result` on success, `error_message` on failure
+- [x] 4.9 Configure concurrency via `WORKER_CONCURRENCY` env var (default: 3)
+- [x] 4.10 Verify worker picks up and processes jobs end-to-end
 
 ### Tests
 
-- [ ] 4.11 Unit tests for `transform_json` action (mapping, nested paths, missing keys)
-- [ ] 4.12 Unit tests for `filter_fields` action (allowlist mode, blocklist mode)
-- [ ] 4.13 Unit tests for `enrich_timestamp` action (meta block structure)
-- [ ] 4.14 Unit tests for action dispatcher (unknown action_type error)
-- [ ] 4.15 Integration test: webhook → queue → worker → job completed
+- [x] 4.11 Unit tests for `transform_json` action (mapping, nested paths, missing keys)
+- [x] 4.12 Unit tests for `filter_fields` action (allowlist mode, blocklist mode)
+- [x] 4.13 Unit tests for `enrich_timestamp` action (meta block structure)
+- [x] 4.14 Unit tests for action dispatcher (unknown action_type error)
+- [x] 4.15 Integration test: webhook → queue → worker → job completed
+
+### Additional Files Created
+
+- [x] `src/actions/transformJson.ts` — Field remapping via dot-notation paths
+- [x] `src/actions/filterFields.ts` — Allowlist/blocklist field filtering
+- [x] `src/actions/enrichTimestamp.ts` — Adds \_meta block with pipeline info + timestamp
+- [x] `src/actions/index.ts` — Action registry, dispatcher, ActionHandler type, PipelineContext interface
+- [x] `src/worker.ts` — Full worker implementation (pg-boss subscriber, job processing, graceful shutdown)
+- [x] `tests/unit/actions/transformJson.test.ts` — 10 unit tests for transform_json action
+- [x] `tests/unit/actions/filterFields.test.ts` — 10 unit tests for filter_fields action
+- [x] `tests/unit/actions/enrichTimestamp.test.ts` — 8 unit tests for enrich_timestamp action
+- [x] `tests/unit/actions/dispatcher.test.ts` — 5 unit tests for action dispatcher
+- [x] `tests/unit/worker.test.ts` — 18 unit tests for worker job processing
 
 ---
 
