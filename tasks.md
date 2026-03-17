@@ -149,23 +149,23 @@
 
 ### Delivery Service
 
-- [ ] 5.1 Create `src/services/delivery.ts` — POST result to subscriber URL with custom headers
-- [ ] 5.2 Set 10s timeout per HTTP request
-- [ ] 5.3 Record each attempt in `delivery_attempts` table (status_code, success, response_body, attempt_number)
-- [ ] 5.4 Treat any 2xx response as success
+- [x] 5.1 Create `src/services/delivery.ts` — POST result to subscriber URL with custom headers
+- [x] 5.2 Set 10s timeout per HTTP request
+- [x] 5.3 Record each attempt in `delivery_attempts` table (status_code, success, response_body, attempt_number)
+- [x] 5.4 Treat any 2xx response as success
 
 ### Retry Mechanism
 
-- [ ] 5.5 Implement exponential backoff schedule (30s, 2m, 10m, 30m, 2h)
-- [ ] 5.6 Schedule retry via pg-boss delayed jobs on failure
-- [ ] 5.7 Mark delivery permanently failed after 5 attempts
-- [ ] 5.8 Integrate delivery into worker job handler (deliver to all subscribers after action runs)
+- [x] 5.5 Implement exponential backoff schedule (30s, 2m, 10m, 30m, 2h)
+- [x] 5.6 Schedule retry via pg-boss delayed jobs on failure
+- [x] 5.7 Mark delivery permanently failed after 5 attempts
+- [x] 5.8 Integrate delivery into worker job handler (deliver to all subscribers after action runs)
 
 ### Tests
 
-- [ ] 5.9 Unit tests for delivery service (success, failure, timeout)
-- [ ] 5.10 Unit tests for retry backoff schedule calculation
-- [ ] 5.11 Integration test: failed delivery triggers retry
+- [x] 5.9 Unit tests for delivery service (success, failure, timeout)
+- [x] 5.10 Unit tests for retry backoff schedule calculation
+- [x] 5.11 Integration test: failed delivery triggers retry
 
 ---
 

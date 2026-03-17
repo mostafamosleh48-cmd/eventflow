@@ -2,34 +2,82 @@ import 'dotenv/config';
 
 import type { Job as PgBossJob } from 'pg-boss';
 
-import { startQueue, stopQueue, getQueueName } from './services/queue';
-import pool from './db/pool';
 import { runAction } from './actions/index';
 import type { PipelineContext } from './actions/index';
-import type { Pipeline } from './types/pipeline';
+import pool from './db/pool';
+import {
+  deliverToSubscriber,
+  calculateDeliveryRetryDelaySeconds,
+  MAX_DELIVERY_ATTEMPTS,
+} from './services/delivery';
+import {
+  enqueueDeliveryRetry,
+  getQueueName,
+  startQueue,
+  stopQueue,
+  type DeliveryRetryJobData,
+  type QueueJobData,
+  type WebhookJobData,
+} from './services/queue';
+import type { Pipeline, Subscriber } from './types/pipeline';
 
-interface WebhookJobData {
-  jobId: string;
-  pipelineId: string;
-  payload: Record<string, unknown>;
+function isDeliveryRetryJobData(jobData: QueueJobData): jobData is DeliveryRetryJobData {
+  return 'type' in jobData && jobData.type === 'delivery_retry';
 }
 
-async function processJob(data: WebhookJobData): Promise<void> {
+async function scheduleDeliveryRetry(
+  jobId: string,
+  pipelineId: string,
+  subscriberId: string,
+  payload: Record<string, unknown>,
+  attemptNumber: number
+): Promise<void> {
+  if (attemptNumber >= MAX_DELIVERY_ATTEMPTS) {
+    return;
+  }
+
+  const retryNumber = attemptNumber;
+  const delaySeconds = calculateDeliveryRetryDelaySeconds(retryNumber);
+  if (delaySeconds === null) {
+    return;
+  }
+
+  await enqueueDeliveryRetry(
+    jobId,
+    pipelineId,
+    subscriberId,
+    payload,
+    attemptNumber + 1,
+    delaySeconds
+  );
+}
+
+async function fetchPipeline(pipelineId: string): Promise<Pipeline | null> {
+  const pipelineResult = await pool.query<Pipeline>('SELECT * FROM pipelines WHERE id = $1', [
+    pipelineId,
+  ]);
+  return pipelineResult.rows[0] ?? null;
+}
+
+async function fetchSubscribers(pipelineId: string): Promise<Subscriber[]> {
+  const subscribersResult = await pool.query<Subscriber>(
+    'SELECT id, pipeline_id, url, headers, created_at FROM subscribers WHERE pipeline_id = $1',
+    [pipelineId]
+  );
+
+  return subscribersResult.rows;
+}
+
+async function processWebhookJob(data: WebhookJobData): Promise<void> {
   const { jobId, pipelineId, payload } = data;
 
   try {
-    // Mark job as processing
     await pool.query(
       'UPDATE jobs SET status = $1, attempts = attempts + 1, updated_at = NOW() WHERE id = $2',
       ['processing', jobId]
     );
 
-    // Fetch the pipeline
-    const pipelineResult = await pool.query<Pipeline>('SELECT * FROM pipelines WHERE id = $1', [
-      pipelineId,
-    ]);
-
-    const pipeline = pipelineResult.rows[0];
+    const pipeline = await fetchPipeline(pipelineId);
 
     if (!pipeline) {
       await pool.query(
@@ -39,17 +87,23 @@ async function processJob(data: WebhookJobData): Promise<void> {
       return;
     }
 
-    // Build pipeline context
     const context: PipelineContext = {
       pipeline_id: pipeline.id,
       pipeline_name: pipeline.name,
       action_type: pipeline.action_type,
     };
 
-    // Run the action
     const result = runAction(pipeline.action_type, payload, pipeline.action_config, context);
+    const subscribers = await fetchSubscribers(pipeline.id);
 
-    // Mark job as completed
+    for (const subscriber of subscribers) {
+      const deliveryResult = await deliverToSubscriber(jobId, subscriber, result, 1);
+
+      if (!deliveryResult.success) {
+        await scheduleDeliveryRetry(jobId, pipeline.id, subscriber.id, result, 1);
+      }
+    }
+
     await pool.query(
       'UPDATE jobs SET status = $1, result = $2, completed_at = NOW(), updated_at = NOW() WHERE id = $3',
       ['completed', JSON.stringify(result), jobId]
@@ -67,18 +121,49 @@ async function processJob(data: WebhookJobData): Promise<void> {
   }
 }
 
-async function main(): Promise<void> {
+async function processDeliveryRetryJob(data: DeliveryRetryJobData): Promise<void> {
+  const { jobId, pipelineId, subscriberId, payload, attemptNumber } = data;
+
+  const subscriberResult = await pool.query<Subscriber>(
+    `SELECT id, pipeline_id, url, headers, created_at
+     FROM subscribers
+     WHERE id = $1 AND pipeline_id = $2`,
+    [subscriberId, pipelineId]
+  );
+
+  const subscriber = subscriberResult.rows[0];
+  if (!subscriber) {
+    return;
+  }
+
+  const deliveryResult = await deliverToSubscriber(jobId, subscriber, payload, attemptNumber);
+
+  if (!deliveryResult.success) {
+    await scheduleDeliveryRetry(jobId, pipelineId, subscriber.id, payload, attemptNumber);
+  }
+}
+
+export async function processQueueJob(data: QueueJobData): Promise<void> {
+  if (isDeliveryRetryJobData(data)) {
+    await processDeliveryRetryJob(data);
+    return;
+  }
+
+  await processWebhookJob(data);
+}
+
+export async function startWorker(): Promise<void> {
   const boss = await startQueue();
 
   const concurrency = parseInt(process.env.WORKER_CONCURRENCY ?? '3', 10);
   const queueName = getQueueName();
 
-  await boss.work<WebhookJobData>(
+  await boss.work<QueueJobData>(
     queueName,
     { batchSize: 1, localConcurrency: concurrency },
-    async (jobs: PgBossJob<WebhookJobData>[]): Promise<void> => {
+    async (jobs: PgBossJob<QueueJobData>[]): Promise<void> => {
       for (const job of jobs) {
-        await processJob(job.data);
+        await processQueueJob(job.data);
       }
     }
   );
@@ -102,8 +187,10 @@ process.on('SIGTERM', () => {
     });
 });
 
-main().catch((err: unknown) => {
-  // eslint-disable-next-line no-console
-  console.error('Worker failed to start:', err);
-  process.exit(1);
-});
+if (require.main === module) {
+  startWorker().catch((err: unknown) => {
+    // eslint-disable-next-line no-console
+    console.error('Worker failed to start:', err);
+    process.exit(1);
+  });
+}

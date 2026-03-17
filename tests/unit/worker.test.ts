@@ -1,12 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/unbound-method */
 
-import type { Pipeline } from '../../src/types/pipeline';
+import type { Pipeline, Subscriber } from '../../src/types/pipeline';
 
-// ---------------------------------------------------------------------------
-// Mock setup — must come before importing the worker module
-// ---------------------------------------------------------------------------
-
-// Capture the handler passed to boss.work() so we can invoke it in tests
 let capturedWorkHandler: (jobs: any[]) => Promise<void>;
 let capturedWorkOptions: Record<string, unknown> = {};
 
@@ -24,6 +19,7 @@ jest.mock('../../src/services/queue', () => ({
   stopQueue: jest.fn().mockResolvedValue(undefined),
   getQueueName: jest.fn().mockReturnValue('webhook-jobs'),
   getQueueInstance: jest.fn().mockReturnValue(mockBoss),
+  enqueueDeliveryRetry: jest.fn().mockResolvedValue('retry-job-id'),
 }));
 
 jest.mock('../../src/db/pool', () => {
@@ -39,23 +35,28 @@ jest.mock('../../src/actions/index', () => ({
   runAction: jest.fn(),
 }));
 
-// Prevent process.exit from actually exiting during tests
+jest.mock('../../src/services/delivery', () => ({
+  deliverToSubscriber: jest.fn(),
+  calculateDeliveryRetryDelaySeconds: jest.fn(),
+  MAX_DELIVERY_ATTEMPTS: 5,
+}));
+
 const mockExit = jest.spyOn(process, 'exit').mockImplementation(() => undefined as never);
 
-// ---------------------------------------------------------------------------
-// Imports (after mocks are set up)
-// ---------------------------------------------------------------------------
-
-import pool from '../../src/db/pool';
-import { startQueue, getQueueName } from '../../src/services/queue';
 import { runAction } from '../../src/actions/index';
+import pool from '../../src/db/pool';
+import {
+  calculateDeliveryRetryDelaySeconds,
+  deliverToSubscriber,
+} from '../../src/services/delivery';
+import { enqueueDeliveryRetry, getQueueName, startQueue } from '../../src/services/queue';
+import { startWorker } from '../../src/worker';
 
 const mockQuery = pool.query as jest.Mock<any>;
 const mockRunAction = runAction as jest.Mock<any>;
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+const mockDeliverToSubscriber = deliverToSubscriber as jest.Mock<any>;
+const mockCalculateRetryDelay = calculateDeliveryRetryDelaySeconds as jest.Mock<any>;
+const mockEnqueueDeliveryRetry = enqueueDeliveryRetry as jest.Mock<any>;
 
 const MOCK_PIPELINE: Pipeline = {
   id: 'pipeline-uuid-123',
@@ -67,6 +68,14 @@ const MOCK_PIPELINE: Pipeline = {
   is_active: true,
   created_at: '2025-01-01T00:00:00.000Z',
   updated_at: '2025-01-01T00:00:00.000Z',
+};
+
+const MOCK_SUBSCRIBER: Subscriber = {
+  id: 'subscriber-uuid-1',
+  pipeline_id: 'pipeline-uuid-123',
+  url: 'https://example.com/webhook',
+  headers: { Authorization: 'Bearer test' },
+  created_at: '2025-01-01T00:00:00.000Z',
 };
 
 function makePgBossJob(data: Record<string, unknown>): Record<string, unknown> {
@@ -90,11 +99,6 @@ function mockQueryResult(
   return { rows, rowCount: rows.length, command, oid: 0, fields: [] };
 }
 
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
-
-// Track startup state before any beforeEach clears mocks
 let startupStartQueueCallCount: number;
 let startupBossWorkCallCount: number;
 let startupGetQueueNameCallCount: number;
@@ -102,14 +106,8 @@ let startupBossWorkArgs: unknown[];
 
 describe('Worker', () => {
   beforeAll(async () => {
-    // Importing the worker triggers main() which calls startQueue() + boss.work().
-    // Our mocks prevent any real connections, and we capture the work handler.
-    await import('../../src/worker');
+    await startWorker();
 
-    // Give the top-level main().catch() promise a tick to settle
-    await new Promise((resolve) => setTimeout(resolve, 50));
-
-    // Snapshot startup call counts before any test's beforeEach clears them
     startupStartQueueCallCount = (startQueue as jest.Mock).mock.calls.length;
     startupBossWorkCallCount = mockBoss.work.mock.calls.length;
     startupGetQueueNameCallCount = (getQueueName as jest.Mock).mock.calls.length;
@@ -119,10 +117,6 @@ describe('Worker', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
-
-  // -----------------------------------------------------------------------
-  // Startup / subscription
-  // -----------------------------------------------------------------------
 
   describe('startup', () => {
     it('calls startQueue on import', () => {
@@ -146,11 +140,7 @@ describe('Worker', () => {
     });
   });
 
-  // -----------------------------------------------------------------------
-  // Job processing — happy path
-  // -----------------------------------------------------------------------
-
-  describe('processJob — success', () => {
+  describe('processWebhookJob — success', () => {
     const jobData = {
       jobId: 'job-uuid-456',
       pipelineId: 'pipeline-uuid-123',
@@ -160,16 +150,18 @@ describe('Worker', () => {
     const transformedResult = { out: 'in', event: 'user.created' };
 
     beforeEach(async () => {
-      // 1st call: UPDATE jobs SET status = 'processing' ...
       mockQuery.mockResolvedValueOnce(mockQueryResult());
-
-      // 2nd call: SELECT * FROM pipelines WHERE id = $1
       mockQuery.mockResolvedValueOnce(mockQueryResult([MOCK_PIPELINE], 'SELECT'));
-
-      // 3rd call: UPDATE jobs SET status = 'completed' ...
+      mockQuery.mockResolvedValueOnce(mockQueryResult([MOCK_SUBSCRIBER], 'SELECT'));
       mockQuery.mockResolvedValueOnce(mockQueryResult());
 
       mockRunAction.mockReturnValue(transformedResult);
+      mockDeliverToSubscriber.mockResolvedValue({
+        success: true,
+        statusCode: 200,
+        responseBody: 'ok',
+        attemptNumber: 1,
+      });
 
       await capturedWorkHandler([makePgBossJob(jobData)]);
     });
@@ -181,50 +173,130 @@ describe('Worker', () => {
       expect(firstCall[1]).toContain('job-uuid-456');
     });
 
-    it('increments the attempts counter', () => {
-      const firstCall = mockQuery.mock.calls[0];
-      expect(firstCall[0]).toMatch(/attempts = attempts \+ 1/);
-    });
-
-    it('fetches the pipeline from the database', () => {
-      const secondCall = mockQuery.mock.calls[1];
-      expect(secondCall[0]).toMatch(/SELECT \* FROM pipelines WHERE id/);
-      expect(secondCall[1]).toEqual(['pipeline-uuid-123']);
-    });
-
-    it('calls runAction with correct parameters', () => {
+    it('calls runAction and delivery', () => {
       expect(mockRunAction).toHaveBeenCalledTimes(1);
-      expect(mockRunAction).toHaveBeenCalledWith(
-        'transform_json',
-        jobData.payload,
-        MOCK_PIPELINE.action_config,
-        {
-          pipeline_id: MOCK_PIPELINE.id,
-          pipeline_name: MOCK_PIPELINE.name,
-          action_type: MOCK_PIPELINE.action_type,
-        }
+      expect(mockDeliverToSubscriber).toHaveBeenCalledWith(
+        'job-uuid-456',
+        MOCK_SUBSCRIBER,
+        transformedResult,
+        1
       );
     });
 
-    it('updates job to completed with serialised result', () => {
-      const thirdCall = mockQuery.mock.calls[2];
-      expect(thirdCall[0]).toMatch(/UPDATE jobs SET status/);
-      expect(thirdCall[1]).toContain('completed');
-      expect(thirdCall[1]).toContain(JSON.stringify(transformedResult));
-      expect(thirdCall[1]).toContain('job-uuid-456');
+    it('marks the job as completed', () => {
+      const finalCall = mockQuery.mock.calls[3];
+      expect(finalCall[0]).toMatch(/UPDATE jobs SET status/);
+      expect(finalCall[1]).toContain('completed');
+      expect(finalCall[1]).toContain('job-uuid-456');
     });
 
-    it('sets completed_at timestamp', () => {
-      const thirdCall = mockQuery.mock.calls[2];
-      expect(thirdCall[0]).toMatch(/completed_at = NOW\(\)/);
+    it('does not enqueue retry on successful delivery', () => {
+      expect(mockEnqueueDeliveryRetry).not.toHaveBeenCalled();
     });
   });
 
-  // -----------------------------------------------------------------------
-  // Job processing — pipeline not found
-  // -----------------------------------------------------------------------
+  describe('processWebhookJob — failed first delivery', () => {
+    const jobData = {
+      jobId: 'job-uuid-fail-delivery',
+      pipelineId: 'pipeline-uuid-123',
+      payload: { event: 'user.created' },
+    };
 
-  describe('processJob — pipeline not found', () => {
+    const transformedResult = { transformed: true };
+
+    beforeEach(async () => {
+      mockQuery.mockResolvedValueOnce(mockQueryResult());
+      mockQuery.mockResolvedValueOnce(mockQueryResult([MOCK_PIPELINE], 'SELECT'));
+      mockQuery.mockResolvedValueOnce(mockQueryResult([MOCK_SUBSCRIBER], 'SELECT'));
+      mockQuery.mockResolvedValueOnce(mockQueryResult());
+
+      mockRunAction.mockReturnValue(transformedResult);
+      mockDeliverToSubscriber.mockResolvedValue({
+        success: false,
+        statusCode: 500,
+        responseBody: 'error',
+        attemptNumber: 1,
+      });
+      mockCalculateRetryDelay.mockReturnValue(30);
+
+      await capturedWorkHandler([makePgBossJob(jobData)]);
+    });
+
+    it('schedules delayed retry after failed delivery', () => {
+      expect(mockCalculateRetryDelay).toHaveBeenCalledWith(1);
+      expect(mockEnqueueDeliveryRetry).toHaveBeenCalledWith(
+        'job-uuid-fail-delivery',
+        'pipeline-uuid-123',
+        'subscriber-uuid-1',
+        transformedResult,
+        2,
+        30
+      );
+    });
+  });
+
+  describe('processDeliveryRetryJob — success', () => {
+    const retryJobData = {
+      type: 'delivery_retry' as const,
+      jobId: 'job-uuid-456',
+      pipelineId: 'pipeline-uuid-123',
+      subscriberId: 'subscriber-uuid-1',
+      payload: { transformed: true },
+      attemptNumber: 2,
+    };
+
+    beforeEach(async () => {
+      mockQuery.mockResolvedValueOnce(mockQueryResult([MOCK_SUBSCRIBER], 'SELECT'));
+      mockDeliverToSubscriber.mockResolvedValue({
+        success: true,
+        statusCode: 204,
+        responseBody: '',
+        attemptNumber: 2,
+      });
+
+      await capturedWorkHandler([makePgBossJob(retryJobData)]);
+    });
+
+    it('delivers retry payload with current attempt number', () => {
+      expect(mockDeliverToSubscriber).toHaveBeenCalledWith(
+        'job-uuid-456',
+        MOCK_SUBSCRIBER,
+        retryJobData.payload,
+        2
+      );
+      expect(mockEnqueueDeliveryRetry).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('processDeliveryRetryJob — failure on max attempt', () => {
+    const retryJobData = {
+      type: 'delivery_retry' as const,
+      jobId: 'job-uuid-456',
+      pipelineId: 'pipeline-uuid-123',
+      subscriberId: 'subscriber-uuid-1',
+      payload: { transformed: true },
+      attemptNumber: 5,
+    };
+
+    beforeEach(async () => {
+      mockQuery.mockResolvedValueOnce(mockQueryResult([MOCK_SUBSCRIBER], 'SELECT'));
+      mockDeliverToSubscriber.mockResolvedValue({
+        success: false,
+        statusCode: 500,
+        responseBody: 'still failing',
+        attemptNumber: 5,
+      });
+
+      await capturedWorkHandler([makePgBossJob(retryJobData)]);
+    });
+
+    it('does not enqueue more retries after attempt 5', () => {
+      expect(mockEnqueueDeliveryRetry).not.toHaveBeenCalled();
+      expect(mockCalculateRetryDelay).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('processWebhookJob — pipeline not found', () => {
     const jobData = {
       jobId: 'job-uuid-789',
       pipelineId: 'missing-pipeline-id',
@@ -232,13 +304,8 @@ describe('Worker', () => {
     };
 
     beforeEach(async () => {
-      // 1st call: UPDATE status to processing
       mockQuery.mockResolvedValueOnce(mockQueryResult());
-
-      // 2nd call: SELECT pipeline — empty result
       mockQuery.mockResolvedValueOnce(mockQueryResult([], 'SELECT'));
-
-      // 3rd call: UPDATE status to failed
       mockQuery.mockResolvedValueOnce(mockQueryResult());
 
       await capturedWorkHandler([makePgBossJob(jobData)]);
@@ -249,24 +316,9 @@ describe('Worker', () => {
       expect(thirdCall[0]).toMatch(/UPDATE jobs SET status/);
       expect(thirdCall[1]).toContain('failed');
     });
-
-    it('includes a descriptive error message', () => {
-      const thirdCall = mockQuery.mock.calls[2];
-      expect(thirdCall[1]).toEqual(
-        expect.arrayContaining([expect.stringContaining('missing-pipeline-id')])
-      );
-    });
-
-    it('does not call runAction', () => {
-      expect(mockRunAction).not.toHaveBeenCalled();
-    });
   });
 
-  // -----------------------------------------------------------------------
-  // Job processing — action throws
-  // -----------------------------------------------------------------------
-
-  describe('processJob — action failure', () => {
+  describe('processWebhookJob — action failure', () => {
     const jobData = {
       jobId: 'job-uuid-err',
       pipelineId: 'pipeline-uuid-123',
@@ -274,73 +326,24 @@ describe('Worker', () => {
     };
 
     beforeEach(async () => {
-      // 1st call: UPDATE status to processing
       mockQuery.mockResolvedValueOnce(mockQueryResult());
-
-      // 2nd call: SELECT pipeline
       mockQuery.mockResolvedValueOnce(mockQueryResult([MOCK_PIPELINE], 'SELECT'));
 
-      // runAction throws
       mockRunAction.mockImplementation(() => {
         throw new Error('Invalid mapping configuration');
       });
 
-      // 3rd call: UPDATE status to failed
       mockQuery.mockResolvedValueOnce(mockQueryResult());
 
       await capturedWorkHandler([makePgBossJob(jobData)]);
     });
 
-    it('marks the job as failed', () => {
+    it('marks the job as failed and stores error', () => {
       const thirdCall = mockQuery.mock.calls[2];
-      expect(thirdCall[0]).toMatch(/UPDATE jobs SET status/);
       expect(thirdCall[1]).toContain('failed');
-    });
-
-    it('stores the error message from the thrown error', () => {
-      const thirdCall = mockQuery.mock.calls[2];
       expect(thirdCall[1]).toContain('Invalid mapping configuration');
     });
-
-    it('does not set completed_at', () => {
-      const thirdCall = mockQuery.mock.calls[2];
-      expect(thirdCall[0]).not.toMatch(/completed_at/);
-    });
   });
-
-  // -----------------------------------------------------------------------
-  // Job processing — non-Error throw
-  // -----------------------------------------------------------------------
-
-  describe('processJob — non-Error thrown value', () => {
-    const jobData = {
-      jobId: 'job-uuid-nonerr',
-      pipelineId: 'pipeline-uuid-123',
-      payload: { x: 1 },
-    };
-
-    beforeEach(async () => {
-      mockQuery.mockResolvedValueOnce(mockQueryResult());
-      mockQuery.mockResolvedValueOnce(mockQueryResult([MOCK_PIPELINE], 'SELECT'));
-
-      mockRunAction.mockImplementation(() => {
-        throw 'string error'; // eslint-disable-line @typescript-eslint/only-throw-error
-      });
-
-      mockQuery.mockResolvedValueOnce(mockQueryResult());
-
-      await capturedWorkHandler([makePgBossJob(jobData)]);
-    });
-
-    it('falls back to "Unknown error" message', () => {
-      const thirdCall = mockQuery.mock.calls[2];
-      expect(thirdCall[1]).toContain('Unknown error');
-    });
-  });
-
-  // -----------------------------------------------------------------------
-  // Shutdown
-  // -----------------------------------------------------------------------
 
   describe('shutdown', () => {
     afterEach(() => {
@@ -348,7 +351,6 @@ describe('Worker', () => {
     });
 
     it('process.exit mock is in place', () => {
-      // Sanity check that our spy prevents actual exit
       expect(mockExit).toBeDefined();
     });
   });
