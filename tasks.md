@@ -173,16 +173,16 @@
 
 ### Job Routes
 
-- [ ] 6.1 Create `src/routes/jobs.ts` — Express router for `/api/v1/jobs`
-- [ ] 6.2 `GET /api/v1/jobs/:id` — return job with status, payload, result, timestamps
-- [ ] 6.3 `GET /api/v1/jobs` — list jobs with query filters: `pipeline_id`, `status`, `limit`, `offset`
-- [ ] 6.4 `GET /api/v1/jobs/:id/deliveries` — return delivery attempts for a job (with subscriber URL)
+- [x] 6.1 Create `src/routes/jobs.ts` — Express router for `/api/v1/jobs`
+- [x] 6.2 `GET /api/v1/jobs/:id` — return job with status, payload, result, timestamps
+- [x] 6.3 `GET /api/v1/jobs` — list jobs with query filters: `pipeline_id`, `status`, `limit`, `offset`
+- [x] 6.4 `GET /api/v1/jobs/:id/deliveries` — return delivery attempts for a job (with subscriber URL)
 
 ### Tests
 
-- [ ] 6.5 Integration tests for job status endpoint
-- [ ] 6.6 Integration tests for job listing with filters
-- [ ] 6.7 Integration tests for delivery history endpoint
+- [x] 6.5 Integration tests for job status endpoint
+- [x] 6.6 Integration tests for job listing with filters
+- [x] 6.7 Integration tests for delivery history endpoint
 
 ---
 

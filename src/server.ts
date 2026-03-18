@@ -4,6 +4,7 @@ dotenv.config();
 
 import express from 'express';
 
+import { jobsRouter } from './routes/jobs';
 import { pipelineRouter } from './routes/pipelines';
 import { webhookRouter } from './routes/webhooks';
 import { startQueue, stopQueue } from './services/queue';
@@ -18,6 +19,7 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+app.use('/api/v1/jobs', jobsRouter);
 app.use('/api/v1/pipelines', pipelineRouter);
 app.use('/webhooks', webhookRouter);
 
