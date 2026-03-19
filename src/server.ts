@@ -2,8 +2,10 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-import express from 'express';
 import type { Server } from 'node:http';
+import path from 'node:path';
+
+import express from 'express';
 
 import { jobsRouter } from './routes/jobs';
 import { pipelineRouter } from './routes/pipelines';
@@ -15,6 +17,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -23,6 +26,14 @@ app.get('/health', (_req, res) => {
 app.use('/api/v1/jobs', jobsRouter);
 app.use('/api/v1/pipelines', pipelineRouter);
 app.use('/webhooks', webhookRouter);
+
+app.get('/api-ui', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'api-tester.html'));
+});
+
+app.get('/', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'api-tester.html'));
+});
 
 app.use(errorHandler);
 

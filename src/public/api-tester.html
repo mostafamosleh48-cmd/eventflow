@@ -1,0 +1,624 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Eventflow API UI</title>
+    <style>
+      :root {
+        --bg: #f5f6f3;
+        --surface: #ffffff;
+        --surface-alt: #eef2e8;
+        --border: #cfd7c2;
+        --text: #1f2a1f;
+        --muted: #516051;
+        --accent: #2c6f57;
+        --accent-strong: #1d5843;
+        --error: #b33a3a;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        color: var(--text);
+        background: radial-gradient(circle at top right, #dce6cf, var(--bg) 50%);
+      }
+
+      .page {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 1.25rem;
+      }
+
+      h1 {
+        margin: 0;
+      }
+
+      p {
+        margin: 0.5rem 0 0;
+        color: var(--muted);
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 1rem;
+        margin-top: 1rem;
+      }
+
+      .panel,
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        box-shadow: 0 8px 18px rgba(35, 49, 35, 0.08);
+      }
+
+      .card {
+        padding: 0.9rem;
+      }
+
+      .card h2 {
+        margin-top: 0;
+        margin-bottom: 0.4rem;
+        font-size: 1.05rem;
+      }
+
+      .card p {
+        margin-bottom: 0.8rem;
+      }
+
+      .input-row {
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+        margin-bottom: 0.65rem;
+      }
+
+      label {
+        font-weight: 600;
+        font-size: 0.9rem;
+      }
+
+      input,
+      select,
+      textarea,
+      button {
+        font: inherit;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.55rem 0.65rem;
+      }
+
+      textarea {
+        min-height: 90px;
+        resize: vertical;
+        background: #fcfdf9;
+      }
+
+      button {
+        border: 0;
+        color: #fff;
+        background: var(--accent);
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      button:hover {
+        background: var(--accent-strong);
+      }
+
+      .quick-actions {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 0.9rem;
+      }
+
+      .panel {
+        padding: 0.9rem;
+      }
+
+      .panel.active {
+        border-color: var(--accent);
+        box-shadow:
+          0 0 0 2px rgba(44, 111, 87, 0.2),
+          0 8px 18px rgba(35, 49, 35, 0.08);
+      }
+
+      .panel h3 {
+        margin: 0 0 0.55rem;
+      }
+
+      .status {
+        margin-bottom: 0.5rem;
+        font-weight: 700;
+      }
+
+      .status.error {
+        color: var(--error);
+      }
+
+      .output {
+        background: var(--surface-alt);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.7rem;
+        min-height: 180px;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+
+      details {
+        margin-top: 0.9rem;
+      }
+
+      summary {
+        cursor: pointer;
+        font-weight: 700;
+      }
+
+      .generic {
+        margin-top: 0.6rem;
+        border: 1px dashed var(--border);
+        border-radius: 8px;
+        padding: 0.8rem;
+      }
+
+      .generic .inline {
+        display: flex;
+        gap: 0.45rem;
+      }
+
+      .generic .inline > *:nth-child(2) {
+        flex: 1;
+      }
+
+      @media (min-width: 930px) {
+        .layout {
+          grid-template-columns: 2fr 1fr;
+          align-items: start;
+        }
+
+        .quick-actions {
+          grid-template-columns: 1fr 1fr;
+        }
+
+        .quick-actions .wide {
+          grid-column: span 2;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <h1>Eventflow API Actions</h1>
+      <p>Use dedicated buttons for common endpoints and inspect response status and body.</p>
+
+      <div class="layout">
+        <section class="quick-actions">
+          <article class="card">
+            <h2>Health Check</h2>
+            <p>GET <code>/health</code></p>
+            <button id="health-btn" type="button">Run Health Check</button>
+          </article>
+
+          <article class="card">
+            <h2>List Pipelines</h2>
+            <p>GET <code>/api/v1/pipelines</code></p>
+            <div class="input-row">
+              <label for="list-limit">Limit</label>
+              <input id="list-limit" type="number" min="1" max="100" value="20" />
+            </div>
+            <div class="input-row">
+              <label for="list-offset">Offset</label>
+              <input id="list-offset" type="number" min="0" value="0" />
+            </div>
+            <button id="list-btn" type="button">List Pipelines</button>
+          </article>
+
+          <article class="card wide">
+            <h2>Create Pipeline</h2>
+            <p>POST <code>/api/v1/pipelines</code></p>
+            <div class="input-row">
+              <label for="pipeline-name">Name</label>
+              <input id="pipeline-name" type="text" value="demo-pipeline" />
+            </div>
+            <div class="input-row">
+              <label for="pipeline-description">Description (optional)</label>
+              <input id="pipeline-description" type="text" value="Pipeline created from API UI" />
+            </div>
+            <div class="input-row">
+              <label for="action-type">Action Type</label>
+              <select id="action-type">
+                <option value="transform_json">transform_json</option>
+                <option value="filter_fields">filter_fields</option>
+                <option value="enrich_timestamp" selected>enrich_timestamp</option>
+              </select>
+            </div>
+            <div class="input-row">
+              <label for="action-config">Action Config JSON</label>
+              <textarea id="action-config">{}</textarea>
+            </div>
+            <div class="input-row">
+              <label for="subscribers">Subscribers JSON array</label>
+              <textarea id="subscribers">[]</textarea>
+            </div>
+            <button id="create-btn" type="button">Create Pipeline</button>
+          </article>
+
+          <article class="card wide">
+            <h2>Send Webhook</h2>
+            <p>POST <code>/webhooks/:sourceToken</code></p>
+            <div class="input-row">
+              <label for="webhook-token">Source Token</label>
+              <input
+                id="webhook-token"
+                type="text"
+                placeholder="Paste source_token from a pipeline"
+              />
+            </div>
+            <div class="input-row">
+              <label for="webhook-body">Webhook JSON payload</label>
+              <textarea id="webhook-body">{"event":"order.created","order_id":"ord_123"}</textarea>
+            </div>
+            <button id="webhook-btn" type="button">Send Webhook</button>
+          </article>
+
+          <article class="card">
+            <h2>List Jobs</h2>
+            <p>GET <code>/api/v1/jobs</code></p>
+            <div class="input-row">
+              <label for="jobs-limit">Limit</label>
+              <input id="jobs-limit" type="number" min="1" max="100" value="20" />
+            </div>
+            <div class="input-row">
+              <label for="jobs-offset">Offset</label>
+              <input id="jobs-offset" type="number" min="0" value="0" />
+            </div>
+            <div class="input-row">
+              <label for="jobs-status">Status (optional)</label>
+              <input
+                id="jobs-status"
+                type="text"
+                placeholder="queued, processing, completed, failed"
+              />
+            </div>
+            <div class="input-row">
+              <label for="jobs-pipeline-id">Pipeline ID (optional)</label>
+              <input id="jobs-pipeline-id" type="text" placeholder="Filter by pipeline UUID" />
+            </div>
+            <button id="jobs-list-btn" type="button">List Jobs</button>
+          </article>
+
+          <article class="card">
+            <h2>Get Job</h2>
+            <p>GET <code>/api/v1/jobs/:id</code></p>
+            <div class="input-row">
+              <label for="job-id">Job ID</label>
+              <input id="job-id" type="text" placeholder="Paste job UUID" />
+            </div>
+            <div class="input-row">
+              <label>
+                <input id="include-deliveries" type="checkbox" />
+                Also fetch <code>/api/v1/jobs/:id/deliveries</code>
+              </label>
+            </div>
+            <button id="job-get-btn" type="button">Get Job</button>
+          </article>
+
+          <details class="wide">
+            <summary>Generic Request Tester (existing tool)</summary>
+            <div class="generic">
+              <div class="inline input-row">
+                <select id="method">
+                  <option>GET</option>
+                  <option>POST</option>
+                  <option>PUT</option>
+                  <option>PATCH</option>
+                  <option>DELETE</option>
+                </select>
+                <input id="path" type="text" value="/health" />
+                <button id="send" type="button">Send</button>
+              </div>
+              <div class="input-row">
+                <label for="body">JSON body (optional)</label>
+                <textarea id="body" placeholder='{"name":"example"}'></textarea>
+              </div>
+            </div>
+          </details>
+        </section>
+
+        <aside id="response-panel" class="panel">
+          <h3>Response</h3>
+          <div id="response-status" class="status">Ready.</div>
+          <pre id="output" class="output"></pre>
+        </aside>
+      </div>
+    </main>
+
+    <script>
+      const outputEl = document.getElementById('output');
+      const statusEl = document.getElementById('response-status');
+      const responsePanelEl = document.getElementById('response-panel');
+
+      function revealResponsePanel() {
+        responsePanelEl.classList.add('active');
+        responsePanelEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+
+      function bindResponsePanelReveal(buttonId) {
+        const button = document.getElementById(buttonId);
+        if (!button) {
+          return;
+        }
+
+        button.addEventListener('click', revealResponsePanel);
+      }
+
+      function writeResult(statusText, payload, isError) {
+        statusEl.textContent = statusText;
+        statusEl.classList.toggle('error', Boolean(isError));
+
+        if (typeof payload === 'string') {
+          outputEl.textContent = payload;
+          return;
+        }
+
+        try {
+          outputEl.textContent = JSON.stringify(payload, null, 2);
+        } catch (_error) {
+          outputEl.textContent = String(payload);
+        }
+      }
+
+      const ACTION_CONFIG_TEMPLATES = {
+        transform_json: {
+          mapping: {
+            event_type: 'event',
+            order_id: 'order.id',
+          },
+        },
+        filter_fields: {
+          fields: ['event', 'order_id'],
+          mode: 'allow',
+        },
+        enrich_timestamp: {},
+      };
+
+      function parseJson(text, fallbackMessage) {
+        const trimmed = text.trim();
+        if (!trimmed) {
+          return undefined;
+        }
+
+        try {
+          return JSON.parse(trimmed);
+        } catch (_error) {
+          throw new Error(fallbackMessage);
+        }
+      }
+
+      async function apiRequest(method, path, jsonBody) {
+        const init = { method, headers: {} };
+
+        if (jsonBody !== undefined) {
+          init.body = JSON.stringify(jsonBody);
+          init.headers['Content-Type'] = 'application/json';
+        }
+
+        revealResponsePanel();
+        writeResult('Loading...', 'Waiting for response...', false);
+
+        try {
+          const response = await fetch(path, init);
+          const contentType = response.headers.get('content-type') || '';
+          const payload = contentType.includes('application/json')
+            ? await response.json()
+            : await response.text();
+
+          writeResult(`${response.status} ${response.statusText}`, payload, !response.ok);
+          return payload;
+        } catch (error) {
+          writeResult(
+            'Request failed',
+            error instanceof Error ? error.message : String(error),
+            true
+          );
+          return undefined;
+        }
+      }
+
+      function setDefaultActionConfig(actionType) {
+        const actionConfigEl = document.getElementById('action-config');
+        const template = ACTION_CONFIG_TEMPLATES[actionType] || {};
+        actionConfigEl.value = JSON.stringify(template, null, 2);
+      }
+
+      document.getElementById('health-btn').addEventListener('click', () => {
+        apiRequest('GET', '/health');
+      });
+
+      document.getElementById('list-btn').addEventListener('click', () => {
+        const limit = document.getElementById('list-limit').value.trim() || '20';
+        const offset = document.getElementById('list-offset').value.trim() || '0';
+        apiRequest(
+          'GET',
+          `/api/v1/pipelines?limit=${encodeURIComponent(limit)}&offset=${encodeURIComponent(offset)}`
+        );
+      });
+
+      document.getElementById('create-btn').addEventListener('click', () => {
+        try {
+          const body = {
+            name: document.getElementById('pipeline-name').value.trim(),
+            description: document.getElementById('pipeline-description').value.trim() || undefined,
+            action_type: document.getElementById('action-type').value,
+            action_config:
+              parseJson(
+                document.getElementById('action-config').value,
+                'Action config must be valid JSON'
+              ) || {},
+            subscribers:
+              parseJson(
+                document.getElementById('subscribers').value,
+                'Subscribers must be a valid JSON array'
+              ) || [],
+          };
+
+          if (!body.name) {
+            writeResult('Validation error', 'Pipeline name is required.', true);
+            return;
+          }
+
+          if (!Array.isArray(body.subscribers)) {
+            writeResult('Validation error', 'Subscribers must be a JSON array.', true);
+            return;
+          }
+
+          apiRequest('POST', '/api/v1/pipelines', body);
+        } catch (error) {
+          writeResult(
+            'Validation error',
+            error instanceof Error ? error.message : String(error),
+            true
+          );
+        }
+      });
+
+      document.getElementById('action-type').addEventListener('change', (event) => {
+        setDefaultActionConfig(event.target.value);
+      });
+
+      setDefaultActionConfig(document.getElementById('action-type').value);
+
+      [
+        'health-btn',
+        'list-btn',
+        'create-btn',
+        'webhook-btn',
+        'jobs-list-btn',
+        'job-get-btn',
+        'send',
+      ].forEach(bindResponsePanelReveal);
+
+      document.getElementById('webhook-btn').addEventListener('click', () => {
+        const sourceToken = document.getElementById('webhook-token').value.trim();
+        if (!sourceToken) {
+          writeResult('Validation error', 'Source token is required.', true);
+          return;
+        }
+
+        try {
+          const payload = parseJson(
+            document.getElementById('webhook-body').value,
+            'Webhook payload must be valid JSON'
+          );
+
+          if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+            writeResult('Validation error', 'Webhook payload must be a JSON object.', true);
+            return;
+          }
+
+          apiRequest('POST', `/webhooks/${encodeURIComponent(sourceToken)}`, payload);
+        } catch (error) {
+          writeResult(
+            'Validation error',
+            error instanceof Error ? error.message : String(error),
+            true
+          );
+        }
+      });
+
+      document.getElementById('jobs-list-btn').addEventListener('click', () => {
+        const limit = document.getElementById('jobs-limit').value.trim() || '20';
+        const offset = document.getElementById('jobs-offset').value.trim() || '0';
+        const status = document.getElementById('jobs-status').value.trim();
+        const pipelineId = document.getElementById('jobs-pipeline-id').value.trim();
+
+        const query = new URLSearchParams({ limit, offset });
+        if (status) {
+          query.set('status', status);
+        }
+        if (pipelineId) {
+          query.set('pipeline_id', pipelineId);
+        }
+
+        apiRequest('GET', `/api/v1/jobs?${query.toString()}`);
+      });
+
+      document.getElementById('job-get-btn').addEventListener('click', async () => {
+        const jobId = document.getElementById('job-id').value.trim();
+        if (!jobId) {
+          writeResult('Validation error', 'Job ID is required.', true);
+          return;
+        }
+
+        const includeDeliveries = document.getElementById('include-deliveries').checked;
+        const jobPath = `/api/v1/jobs/${encodeURIComponent(jobId)}`;
+
+        if (!includeDeliveries) {
+          apiRequest('GET', jobPath);
+          return;
+        }
+
+        writeResult('Loading...', 'Fetching job and deliveries...', false);
+        revealResponsePanel();
+
+        try {
+          const [jobResponse, deliveriesResponse] = await Promise.all([
+            fetch(jobPath),
+            fetch(`${jobPath}/deliveries`),
+          ]);
+
+          const [jobPayload, deliveriesPayload] = await Promise.all([
+            jobResponse.headers.get('content-type')?.includes('application/json')
+              ? jobResponse.json()
+              : jobResponse.text(),
+            deliveriesResponse.headers.get('content-type')?.includes('application/json')
+              ? deliveriesResponse.json()
+              : deliveriesResponse.text(),
+          ]);
+
+          const isError = !jobResponse.ok || !deliveriesResponse.ok;
+          const statusText = `Job ${jobResponse.status} ${jobResponse.statusText} | Deliveries ${deliveriesResponse.status} ${deliveriesResponse.statusText}`;
+
+          writeResult(
+            statusText,
+            {
+              job: jobPayload,
+              deliveries: deliveriesPayload,
+            },
+            isError
+          );
+        } catch (error) {
+          writeResult(
+            'Request failed',
+            error instanceof Error ? error.message : String(error),
+            true
+          );
+        }
+      });
+
+      document.getElementById('send').addEventListener('click', () => {
+        const method = document.getElementById('method').value;
+        const path = document.getElementById('path').value.trim() || '/';
+
+        try {
+          const bodyText = document.getElementById('body').value;
+          const body = parseJson(bodyText, 'Generic tester body must be valid JSON');
+          apiRequest(method, path, body);
+        } catch (error) {
+          writeResult(
+            'Validation error',
+            error instanceof Error ? error.message : String(error),
+            true
+          );
+        }
+      });
+    </script>
+  </body>
+</html>
