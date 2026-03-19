@@ -47,7 +47,7 @@ export async function deliverToSubscriber(
 
   let statusCode: number | null = null;
   let success = false;
-  let responseBody = '';
+  let responseBody: string;
 
   try {
     const response = await fetch(subscriber.url, {

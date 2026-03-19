@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 const mockEnqueueDeliveryRetry = jest.fn().mockResolvedValue('retry-job-id');
 
 jest.mock('../../src/services/queue', () => ({

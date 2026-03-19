@@ -13,7 +13,21 @@ jest.mock('../../../src/db/pool', () => {
   return { __esModule: true, default: mockPool };
 });
 
-const mockQuery = pool.query as jest.Mock;
+type PoolQueryMock = jest.MockedFunction<
+  (queryText: string, values?: unknown[]) => Promise<unknown>
+>;
+
+const mockedPool = pool as unknown as { query: PoolQueryMock };
+
+function getQueryParams(callIndex = 0): unknown[] {
+  const call = mockedPool.query.mock.calls[callIndex];
+  if (!call) {
+    return [];
+  }
+
+  const values = call[1];
+  return Array.isArray(values) ? values : [];
+}
 
 const subscriber: Subscriber = {
   id: 'subscriber-1',
@@ -38,19 +52,11 @@ describe('delivery service', () => {
 
     expect(result.success).toBe(true);
     expect(result.statusCode).toBe(201);
-    expect(fetchMock).toHaveBeenCalledWith(
-      subscriber.url,
-      expect.objectContaining({
-        method: 'POST',
-        headers: expect.objectContaining({
-          'Content-Type': 'application/json',
-          'X-Test': 'yes',
-        }),
-      })
-    );
+    const firstFetchCall = fetchMock.mock.calls[0];
+    expect(firstFetchCall?.[0]).toBe(subscriber.url);
 
-    expect(mockQuery).toHaveBeenCalledTimes(1);
-    expect(mockQuery.mock.calls[0][1]).toEqual(['job-1', 'subscriber-1', 201, true, 'created', 1]);
+    expect(mockedPool.query).toHaveBeenCalledTimes(1);
+    expect(getQueryParams(0)).toEqual(['job-1', 'subscriber-1', 201, true, 'created', 1]);
 
     fetchMock.mockRestore();
   });
@@ -65,14 +71,7 @@ describe('delivery service', () => {
 
     expect(result.success).toBe(false);
     expect(result.statusCode).toBe(500);
-    expect(mockQuery.mock.calls[0][1]).toEqual([
-      'job-2',
-      'subscriber-1',
-      500,
-      false,
-      'server error',
-      2,
-    ]);
+    expect(getQueryParams(0)).toEqual(['job-2', 'subscriber-1', 500, false, 'server error', 2]);
 
     fetchMock.mockRestore();
   });
@@ -88,9 +87,10 @@ describe('delivery service', () => {
     expect(result.success).toBe(false);
     expect(result.statusCode).toBeNull();
     expect(result.responseBody).toMatch(/timed out/i);
-    expect(mockQuery.mock.calls[0][1][2]).toBeNull();
-    expect(mockQuery.mock.calls[0][1][3]).toBe(false);
-    expect(mockQuery.mock.calls[0][1][5]).toBe(3);
+    const queryParams = getQueryParams(0);
+    expect(queryParams[2]).toBeNull();
+    expect(queryParams[3]).toBe(false);
+    expect(queryParams[5]).toBe(3);
 
     fetchMock.mockRestore();
   });

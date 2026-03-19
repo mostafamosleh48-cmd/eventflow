@@ -190,19 +190,19 @@
 
 ### GitHub Actions
 
-- [ ] 7.1 Create `.github/workflows/ci.yml` — triggers on push to main + all PRs
-- [ ] 7.2 CI job: lint (`npm run lint`)
-- [ ] 7.3 CI job: typecheck (`npx tsc --noEmit`)
-- [ ] 7.4 CI job: test (`npm test`) with PostgreSQL service container
-- [ ] 7.5 CI job: Docker build verification (`docker build`)
-- [ ] 7.6 CD job: deploy to Cloud Run on merge to main (using `gcloud` CLI)
+- [x] 7.1 Create `.github/workflows/ci.yml` — triggers on push to main + all PRs
+- [x] 7.2 CI job: lint (`npm run lint`)
+- [x] 7.3 CI job: typecheck (`npx tsc --noEmit`)
+- [x] 7.4 CI job: test (`npm test`) with PostgreSQL service container
+- [x] 7.5 CI job: Docker build verification (`docker build`)
+- [x] 7.6 CD job: deploy to Cloud Run on merge to main (using `gcloud` CLI)
 
 ### Cleanup
 
-- [ ] 7.7 Review and fix all lint/type errors
-- [ ] 7.8 Ensure all tests pass
-- [ ] 7.9 Update README with setup instructions, API docs, architecture diagram
-- [ ] 7.10 Verify `docker compose up --build` works end-to-end from clean state
+- [x] 7.7 Review and fix all lint/type errors
+- [x] 7.8 Ensure all tests pass
+- [x] 7.9 Update README with setup instructions, API docs, architecture diagram
+- [x] 7.10 Verify `docker compose up --build` works end-to-end from clean state
 
 ---
 
